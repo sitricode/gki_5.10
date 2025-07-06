@@ -1288,7 +1288,7 @@ static int sidtab_entry_to_string(struct policydb *p,
 				  struct sidtab_entry *entry,
 				  char **scontext, u32 *scontext_len)
 {
-	int rc = sidtab_sid2str_get(sidtab, entry, scontext, scontext_len, alloc);
+	int rc = sidtab_sid2str_get(sidtab, entry, scontext, scontext_len);
 
 	if (rc != -ENOENT)
 		return rc;
