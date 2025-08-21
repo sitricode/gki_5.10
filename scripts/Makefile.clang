@@ -1,35 +1,54 @@
-# Individual arch/{arch}/Makefiles should use -EL/-EB to set intended
-# endianness and -m32/-m64 to set word size based on Kconfigs instead of
-# relying on the target triple.
-CLANG_TARGET_FLAGS_arm		:= arm-linux-gnueabi
-CLANG_TARGET_FLAGS_arm64	:= aarch64-linux-gnu
-CLANG_TARGET_FLAGS_hexagon	:= hexagon-linux-musl
-CLANG_TARGET_FLAGS_m68k		:= m68k-linux-gnu
-CLANG_TARGET_FLAGS_mips		:= mipsel-linux-gnu
-CLANG_TARGET_FLAGS_powerpc	:= powerpc64le-linux-gnu
-CLANG_TARGET_FLAGS_riscv	:= riscv64-linux-gnu
-CLANG_TARGET_FLAGS_s390		:= s390x-linux-gnu
-CLANG_TARGET_FLAGS_x86		:= x86_64-linux-gnu
-CLANG_TARGET_FLAGS		:= $(CLANG_TARGET_FLAGS_$(SRCARCH))
+# SPDX-License-Identifier: GPL-2.0
+# Clang-specific build setup
 
-ifeq ($(CROSS_COMPILE),)
-ifeq ($(CLANG_TARGET_FLAGS),)
-$(error Specify CROSS_COMPILE or add '--target=' option to scripts/Makefile.clang)
-else
-CLANG_FLAGS	+= --target=$(CLANG_TARGET_FLAGS)
-endif # CLANG_TARGET_FLAGS
-else
-CLANG_FLAGS	+= --target=$(notdir $(CROSS_COMPILE:%-=%))
-endif # CROSS_COMPILE
+# Architecture -> target triple fallback
+CLANG_TARGET_FLAGS_arm      := arm-linux-gnueabi
+CLANG_TARGET_FLAGS_arm64    := aarch64-linux-gnu
+CLANG_TARGET_FLAGS_hexagon  := hexagon-linux-musl
+CLANG_TARGET_FLAGS_m68k     := m68k-linux-gnu
+CLANG_TARGET_FLAGS_mips     := mipsel-linux-gnu
+CLANG_TARGET_FLAGS_powerpc  := powerpc64le-linux-gnu
+CLANG_TARGET_FLAGS_riscv    := riscv64-linux-gnu
+CLANG_TARGET_FLAGS_s390     := s390x-linux-gnu
+CLANG_TARGET_FLAGS_x86      := x86_64-linux-gnu
+CLANG_TARGET_FLAGS          := $(CLANG_TARGET_FLAGS_$(SRCARCH))
 
-ifeq ($(LLVM_IAS),0)
-CLANG_FLAGS	+= -fno-integrated-as
+# Check if CC is Clang
+ifneq ($(shell $(CC) --version 2>&1 | head -n 1 | grep clang),)
+
+# Use CROSS_COMPILE if set
+ifneq ($(CROSS_COMPILE),)
+CLANG_FLAGS       += --target=$(notdir $(CROSS_COMPILE:%-=%))
 GCC_TOOLCHAIN_DIR := $(dir $(shell which $(CROSS_COMPILE)elfedit))
-CLANG_FLAGS	+= --prefix=$(GCC_TOOLCHAIN_DIR)$(notdir $(CROSS_COMPILE))
+CLANG_FLAGS       += --prefix=$(GCC_TOOLCHAIN_DIR)$(notdir $(CROSS_COMPILE))
+GCC_TOOLCHAIN     := $(realpath $(GCC_TOOLCHAIN_DIR)/..)
+
+# Fallback to CLANG_TARGET_FLAGS if CROSS_COMPILE is not set
+else ifneq ($(CLANG_TARGET_FLAGS),)
+CLANG_FLAGS       += --target=$(CLANG_TARGET_FLAGS)
+
 else
-CLANG_FLAGS	+= -fintegrated-as
+$(error Specify CROSS_COMPILE or ensure CLANG_TARGET_FLAGS_$(SRCARCH) is set)
 endif
-CLANG_FLAGS	+= -Werror=unknown-warning-option
-KBUILD_CFLAGS	+= $(CLANG_FLAGS)
-KBUILD_AFLAGS	+= $(CLANG_FLAGS)
+
+# Add --gcc-toolchain if available
+ifneq ($(GCC_TOOLCHAIN),)
+CLANG_FLAGS       += --gcc-toolchain=$(GCC_TOOLCHAIN)
+endif
+
+# LLVM integrated assembler
+ifeq ($(LLVM_IAS),1)
+CLANG_FLAGS       += -fintegrated-as
+else
+CLANG_FLAGS       += -fno-integrated-as
+endif
+
+CLANG_FLAGS       += -Werror=unknown-warning-option
+
+# Apply to build flags
+KBUILD_CPPFLAGS   += $(CLANG_FLAGS)
+KBUILD_CFLAGS     += $(CLANG_FLAGS)
+KBUILD_AFLAGS     += $(CLANG_FLAGS)
 export CLANG_FLAGS
+
+endif
